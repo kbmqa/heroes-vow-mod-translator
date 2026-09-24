@@ -20,7 +20,6 @@ The game's data lives in plain JSON files and is fully translated to English. Mo
 What is deliberately **not** translated:
 
 - rows the game itself never displays (`"func":"1"` logic/comment rows in conversation files)
-- developer notes the game ships without English (listed in `vanilla_untranslated.json`)
 - fields whose English twin is already filled (the game shows that English already)
 
 ## Install (once)
@@ -83,7 +82,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
 | `glossary.json` | Game terms the game translates consistently, pinned during online translation. |
-| `vanilla_untranslated.json` | Chinese lines the game ships without English; skipped. |
+| `vanilla_untranslated.json` | Chinese lines the game itself ships without English. Information only; when a mod shows one of them it is translated online like any other line. |
 | `manual.json` | Online results and your corrections. Edit freely; it always wins. |
 | `python\` | Only if Python was not installed: the private embeddable Python. |
 
@@ -118,7 +117,7 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 
 - **"Game data folder found" shows the wrong path** — paste the correct one; the game folder, `ThreeKingdom_Data`, or the `Json` folder are all accepted.
 - **"That folder belongs to a different game's Workshop"** — the tool only works inside `workshop\content\3020510`. Other games are refused on purpose.
-- **Lines still in Chinese after translating** — they are either logic rows the game never shows, or developer notes the game itself never translated. Check `needs_translation.json` for anything that actually failed.
+- **Lines still in Chinese after translating** — they are logic rows the game never shows, or lines listed in `needs_translation.json` because the online translation failed. Fill those in and run again.
 - **AI: "rejected the API key"** — check `api_key` in `ai_api.ini`. **404** — wrong `model` name for that provider; leave it empty for the default.
 - **A Google line is nonsense** — fix it in `manual.json`, or enable AI translation.
 

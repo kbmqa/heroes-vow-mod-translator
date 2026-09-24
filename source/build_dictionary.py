@@ -19,7 +19,8 @@
 #   dictionary.json          Chinese -> English from every game field that has
 #                            an English twin, plus Conversation option choices.
 #   vanilla_untranslated.json  Chinese lines the game itself ships WITHOUT
-#                            English (developer notes). Skipped by the translator.
+#                            English. For information only: the translator
+#                            still translates them online when a mod shows them.
 #   glossary.json            Short game terms (names, places, titles, stats,
 #                            UI words) the game translates consistently; pinned
 #                            when new mod text is sent online.
@@ -105,7 +106,9 @@ context = yes
 TERM_ZH = re.compile(r"^[一-鿿]{2,4}$")
 TERM_EN = re.compile(r"^[A-Z][A-Za-z'\-]*( [A-Za-z0-9'\-]+){0,2}$")
 
-CJK = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
+# Han ideographs only. Fullwidth punctuation (【】，：) also appears in the game's own
+# ENGLISH, so counting it as Chinese threw away every official line that used it.
+CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
 FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
@@ -285,7 +288,7 @@ def build(game_folder):
     print("")
     print("dictionary.json now has %d entries (%d new, %d conflicting duplicates skipped)."
           % (len(dictionary), len(dictionary) - before, conflicts))
-    print("vanilla_untranslated.json lists %d lines the game ships without English." % len(untranslated))
+    print("vanilla_untranslated.json lists %d lines the game ships without English (for information)." % len(untranslated))
     print("glossary.json has %d game terms." % len(glossary))
     print("")
     print("Everything is in: " + OUT_DIR)
@@ -373,7 +376,6 @@ The game's data lives in plain JSON files and is fully translated to English. Mo
 What is deliberately **not** translated:
 
 - rows the game itself never displays (`"func":"1"` logic/comment rows in conversation files)
-- developer notes the game ships without English (listed in `vanilla_untranslated.json`)
 - fields whose English twin is already filled (the game shows that English already)
 
 ## Install (once)
@@ -436,7 +438,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
 | `glossary.json` | Game terms the game translates consistently, pinned during online translation. |
-| `vanilla_untranslated.json` | Chinese lines the game ships without English; skipped. |
+| `vanilla_untranslated.json` | Chinese lines the game itself ships without English. Information only; when a mod shows one of them it is translated online like any other line. |
 | `manual.json` | Online results and your corrections. Edit freely; it always wins. |
 | `python\` | Only if Python was not installed: the private embeddable Python. |
 
@@ -471,7 +473,7 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 
 - **"Game data folder found" shows the wrong path** — paste the correct one; the game folder, `ThreeKingdom_Data`, or the `Json` folder are all accepted.
 - **"That folder belongs to a different game's Workshop"** — the tool only works inside `workshop\content\3020510`. Other games are refused on purpose.
-- **Lines still in Chinese after translating** — they are either logic rows the game never shows, or developer notes the game itself never translated. Check `needs_translation.json` for anything that actually failed.
+- **Lines still in Chinese after translating** — they are logic rows the game never shows, or lines listed in `needs_translation.json` because the online translation failed. Fill those in and run again.
 - **AI: "rejected the API key"** — check `api_key` in `ai_api.ini`. **404** — wrong `model` name for that provider; leave it empty for the default.
 - **A Google line is nonsense** — fix it in `manual.json`, or enable AI translation.
 
@@ -538,7 +540,8 @@ TRANSLATE_SCRIPT = r'''# translate_mod.py  —  translates a mod folder in one p
 # Never sent online:
 #   - rows whose English twin is already filled (the game shows that already)
 #   - Conversation rows with "func":"1" (logic / comment rows, never displayed)
-#   - lines the game itself ships without English (vanilla_untranslated.json)
+# Lines the game itself ships without English (vanilla_untranslated.json) ARE
+# translated: the player sees them, and a machine translation beats Chinese.
 #
 # If a line reads badly in-game, fix the English in manual.json and run this
 # again - manual.json always wins over dictionary.json and the online result.
@@ -554,7 +557,6 @@ import shutil
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DICT_PATH = os.path.join(SCRIPT_DIR, "dictionary.json")
 MANUAL_PATH = os.path.join(SCRIPT_DIR, "manual.json")
-UNTRANSLATED_PATH = os.path.join(SCRIPT_DIR, "vanilla_untranslated.json")
 GLOSSARY_PATH = os.path.join(SCRIPT_DIR, "glossary.json")
 INI_PATH = os.path.join(SCRIPT_DIR, "ai_api.ini")
 
@@ -592,7 +594,9 @@ def detect_providers(key):
 
 FILL_EN_FIELD = False   # True = also copy the English into the empty "...En" column
 
-CJK = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
+# Han ideographs only. Fullwidth punctuation (【】，：) also appears in the game's own
+# ENGLISH, so counting it as Chinese threw away every official line that used it.
+CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
 FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
@@ -678,9 +682,12 @@ def has_english(s):
     return bool(s) and not CJK.search(s)
 
 
-def apply_dictionary(mod_folder, lookup, skip):
+def apply_dictionary(mod_folder, lookup):
     """Translate what we know. Returns (translated_count, {unknown_chinese: ""}).
-    skip = Chinese lines the game itself never translated; left as they are."""
+    Every display field with Chinese in it is either translated from lookup or
+    reported as unknown, including lines the game itself ships without English
+    (e.g. the Give Gift / Treat to a Drink tooltips): the player sees them, and
+    a machine translation beats Chinese."""
     backup_dir = os.path.join(mod_folder, "backup_original")
     needs = {}
     total = 0
@@ -717,16 +724,13 @@ def apply_dictionary(mod_folder, lookup, skip):
                 p = seg.split("&")
                 if len(p) >= OPT_LEN and CJK.search(p[OPT_ZH]) and not has_english(p[OPT_EN]):
                     zh = norm(p[OPT_ZH])
-                    if zh in skip:
-                        skipped += 1
+                    en = lookup.get(zh)
+                    if en is None:
+                        needs[zh] = ""
+                        note(zh, OPTION_FIELD, fields)
                     else:
-                        en = lookup.get(zh)
-                        if en is None:
-                            needs[zh] = ""
-                            note(zh, OPTION_FIELD, fields)
-                        else:
-                            p[OPT_ZH] = en.replace("&", "and").replace("#", "").replace("\n", " ")
-                            count += 1
+                        p[OPT_ZH] = en.replace("&", "and").replace("#", "").replace("\n", " ")
+                        count += 1
                 segs.append("&".join(p))
             return "#".join(segs)
 
@@ -760,9 +764,6 @@ def apply_dictionary(mod_folder, lookup, skip):
                 if has_english(fields.get(name + "En", "")):
                     return fm.group(0)                 # English twin already filled -> game shows it
                 key = norm(val)
-                if key in skip:
-                    skipped += 1
-                    return fm.group(0)                 # vanilla never translated it either
                 en = lookup.get(key)
                 if en is None:
                     if is_display:
@@ -795,7 +796,7 @@ def apply_dictionary(mod_folder, lookup, skip):
         total += count
         print("  %-30s %d translated" % (os.path.relpath(path, mod_folder), count))
     if skipped:
-        print("  (%d logic rows / vanilla-untranslated lines left as they are)" % skipped)
+        print("  (%d logic rows left as they are)" % skipped)
     return total, needs
 
 
@@ -856,8 +857,11 @@ def clean_reply(text):
     return text.strip()
 
 
-def restore(text, found):
-    return clean_reply(text)
+def restore(text, found, zh=""):
+    text = clean_reply(text)
+    for ph in set(PLACEHOLDER.findall(zh)):          # "WOWhat I want" -> "WO What I want"
+        text = re.sub(r"(?<=[A-Za-z])%s|%s(?=[A-Za-z])" % (ph, ph), lambda m: " " + ph + " ", text)
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
 
 
 def prep_line(line, use_glossary=True):
@@ -957,7 +961,7 @@ class GoogleEngine(object):
         for attempt in range(attempts):
             try:
                 out = self.tr.translate(prot)
-                en = restore(out or "", found)
+                en = restore(out or "", found, line)
                 why = gate(line, en, found)
                 if why is None:
                     return lead + en + tail, None
@@ -992,7 +996,7 @@ class GoogleEngine(object):
             return {}                                  # answer lost its line structure -> slow path
         result, bad, translated = {}, set(), {}
         for (ei, pi, lead, prot, found, ln, tail), o in zip(lines, out_lines):
-            en = restore(o, found)
+            en = restore(o, found, ln)
             if gate(ln, en, found) is None:
                 translated[(ei, pi)] = lead + en + tail
             else:
@@ -1358,9 +1362,6 @@ def translate(mod_folder, cfg=None):
 
     lookup = dict(dictionary)
     lookup.update(manual)
-    skip = set(load_json(UNTRANSLATED_PATH) or []) - set(manual)   # a manual entry un-skips a line
-    if not skip:
-        print("vanilla_untranslated.json not found - re-run build_dictionary.py to stop developer notes going online.")
     load_glossary(bool(cfg.get("use_glossary", True)))
     if not GLOSSARY:
         print("glossary.json not found - re-run build_dictionary.py so game terms are pinned when translating online.")
@@ -1369,7 +1370,7 @@ def translate(mod_folder, cfg=None):
         cfg["engine"], "Google Translate (free) - set enabled = yes in ai_api.ini to use your AI key"))
     print("")
     print("[1/3] Translating with game dictionary + manual.json ...")
-    total, needs = apply_dictionary(mod_folder, lookup, skip)
+    total, needs = apply_dictionary(mod_folder, lookup)
 
     if needs:
         try:
@@ -1388,7 +1389,7 @@ def translate(mod_folder, cfg=None):
             lookup.update(new_manual)
             print("")
             print("[3/3] Finishing with %d %s translations ..." % (len(new_manual), engine.name))
-            more, needs = apply_dictionary(mod_folder, lookup, skip)
+            more, needs = apply_dictionary(mod_folder, lookup)
             total += more
 
     print("")

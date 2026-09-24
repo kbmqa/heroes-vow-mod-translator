@@ -19,7 +19,8 @@
 #   dictionary.json          Chinese -> English from every game field that has
 #                            an English twin, plus Conversation option choices.
 #   vanilla_untranslated.json  Chinese lines the game itself ships WITHOUT
-#                            English (developer notes). Skipped by the translator.
+#                            English. For information only: the translator
+#                            still translates them online when a mod shows them.
 #   glossary.json            Short game terms (names, places, titles, stats,
 #                            UI words) the game translates consistently; pinned
 #                            when new mod text is sent online.
@@ -105,7 +106,9 @@ context = yes
 TERM_ZH = re.compile(r"^[一-鿿]{2,4}$")
 TERM_EN = re.compile(r"^[A-Z][A-Za-z'\-]*( [A-Za-z0-9'\-]+){0,2}$")
 
-CJK = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
+# Han ideographs only. Fullwidth punctuation (【】，：) also appears in the game's own
+# ENGLISH, so counting it as Chinese threw away every official line that used it.
+CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
 FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
@@ -285,7 +288,7 @@ def build(game_folder):
     print("")
     print("dictionary.json now has %d entries (%d new, %d conflicting duplicates skipped)."
           % (len(dictionary), len(dictionary) - before, conflicts))
-    print("vanilla_untranslated.json lists %d lines the game ships without English." % len(untranslated))
+    print("vanilla_untranslated.json lists %d lines the game ships without English (for information)." % len(untranslated))
     print("glossary.json has %d game terms." % len(glossary))
     print("")
     print("Everything is in: " + OUT_DIR)
