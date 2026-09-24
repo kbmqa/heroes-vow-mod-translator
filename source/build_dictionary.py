@@ -815,19 +815,19 @@ def load_glossary(enabled):
 
 
 def protect(text, use_glossary=True):
-    """Replace placeholders (WO, NI, ...) and known game terms with @@n@@ tokens
-    so the translator leaves them alone. Returns (protected_text, restore_list)."""
+    """Write known game terms into the Chinese as their official English before
+    sending, e.g. 每天5点精力 -> 每天5点stamina. Google keeps Latin words it finds
+    inside Chinese text verbatim, so the term comes back exactly as the game
+    spells it. (Neutral @@n@@ tokens were tried first; Google silently drops
+    them now and then, which lost the whole line.) Placeholders such as WO and
+    NI are already Latin capitals and are left as they are for the same reason.
+    Returns (text_to_send, [english terms that must appear in the reply])."""
     found = []
-
-    def swap_placeholder(m):
-        found.append(m.group(0))
-        return "@@%d@@" % (len(found) - 1)
 
     def swap_term(m):
         found.append(GLOSSARY[m.group(0)])
-        return " @@%d@@ " % (len(found) - 1)
+        return GLOSSARY[m.group(0)]
 
-    text = PLACEHOLDER.sub(swap_placeholder, text)
     if use_glossary and GLOSSARY_PAT is not None:
         pat = GLOSSARY_PAT if DESCRIPTION_LINE.search(text) else GLOSSARY_PAT_DLG
         if pat is not None:
@@ -835,19 +835,37 @@ def protect(text, use_glossary=True):
     return text, found
 
 
-def restore(text, found):
-    for i, word in enumerate(found):
-        text = re.sub(r"@@\s*%d\s*@@" % i, word, text)
+# Google's replies can carry invisible zero-width spaces and, for long passages,
+# the original full-width punctuation. Both would fail the "is it English" gate
+# although the text is fine, so they are normalised before the gate looks at it.
+ZERO_WIDTH = re.compile("[\\u200b\\u200c\\u200d\\u2060\\ufeff]")
+WIDE_PUNCT = {"，": ", ", "。": ". ", "；": "; ", "：": ": ", "（": " (", "）": ") ",
+              "！": "! ", "？": "? ", "、": ", ", "「": '"', "」": '"', "『": '"',
+              "』": '"', "【": "[", "】": "]", "～": "~", " ": " ", "×": "x"}
+
+
+def clean_reply(text):
+    text = ZERO_WIDTH.sub("", text)
+    for k, v in WIDE_PUNCT.items():
+        text = text.replace(k, v)
     text = re.sub(r"[ \t]{2,}", " ", text)
-    text = re.sub(r"\s+([,.!?;:])", r"\1", text)
+    text = re.sub(r"\s+([,.!?;:)\]])", r"\1", text)
     return text.strip()
 
 
+def restore(text, found):
+    return clean_reply(text)
+
+
 def prep_line(line, use_glossary=True):
-    """Split a line into (bullet marker, protected body, placeholders)."""
-    lead = re.match(r"^\s*[◆●○■□★☆※•\-]*\s*", line).group(0)
-    prot, found = protect(line[len(lead):], use_glossary)
-    return lead, prot, found
+    """Split a line into (bullet marker, body to send, terms to check, trailing CRs).
+    Game text carries \\r\\n inside strings; after splitting on \\n a part may end
+    in \\r, which Google drops. It is kept aside and put back on the result."""
+    body = line.rstrip("\r")
+    tail = line[len(body):]
+    lead = re.match(r"^\s*[◆●○■□★☆※•\-]*\s*", body).group(0)
+    prot, found = protect(body[len(lead):], use_glossary)
+    return lead, prot, found, tail
 
 
 # anything outside ASCII apart from typographic quotes/dashes/ellipsis means the reply is not English
@@ -861,11 +879,10 @@ def gate(zh, en, found=None):
         return "empty reply"
     if CJK.search(en):
         return "still contains Chinese"
-    if "@@" in en:
-        return "lost a protected token"
     if found:
+        low = en.lower()
         for word in found:
-            if word not in en:
+            if word.lower() not in low:
                 return "dropped '%s'" % word
     for ph in set(PLACEHOLDER.findall(zh)):
         if ph not in en:
@@ -932,7 +949,7 @@ class GoogleEngine(object):
         """One line. Returns (english, None) or (None, reason)."""
         if not line.strip() or not CJK.search(line):
             return line, None
-        lead, prot, found = prep_line(line, self.use_glossary)
+        lead, prot, found, tail = prep_line(line, self.use_glossary)
         last = "unknown"
         for attempt in range(attempts):
             try:
@@ -940,7 +957,7 @@ class GoogleEngine(object):
                 en = restore(out or "", found)
                 why = gate(line, en, found)
                 if why is None:
-                    return lead + en, None
+                    return lead + en + tail, None
                 last = why
             except Exception as e:
                 last, blocked = classify(e)
@@ -952,15 +969,15 @@ class GoogleEngine(object):
 
     def batch(self, entries):
         """Many entries in ONE request. Returns {zh: en} for the ones that passed the gate."""
-        lines = []            # (entry_index, part_index, lead, prot, found, original_line)
+        lines = []            # (entry_index, part_index, lead, prot, found, original_line, tail)
         parts_of = []
         for ei, zh in enumerate(entries):
             parts = zh.split("\n")
             parts_of.append(parts)
             for pi, ln in enumerate(parts):
                 if CJK.search(ln):
-                    lead, prot, found = prep_line(ln, self.use_glossary)
-                    lines.append((ei, pi, lead, prot, found, ln))
+                    lead, prot, found, tail = prep_line(ln, self.use_glossary)
+                    lines.append((ei, pi, lead, prot, found, ln, tail))
         if not lines:
             return {}
         try:
@@ -971,10 +988,10 @@ class GoogleEngine(object):
         if len(out_lines) != len(lines):
             return {}                                  # answer lost its line structure -> slow path
         result, bad, translated = {}, set(), {}
-        for (ei, pi, lead, prot, found, ln), o in zip(lines, out_lines):
+        for (ei, pi, lead, prot, found, ln, tail), o in zip(lines, out_lines):
             en = restore(o, found)
             if gate(ln, en, found) is None:
-                translated[(ei, pi)] = lead + en
+                translated[(ei, pi)] = lead + en + tail
             else:
                 bad.add(ei)
         for ei, parts in enumerate(parts_of):
@@ -1128,8 +1145,9 @@ class AIEngine(object):
                 out = self._request(entries)
                 result = {}
                 for zh, en in zip(entries, out):
+                    en = clean_reply(en)
                     if gate(zh, en) is None:
-                        result[zh] = en.strip()
+                        result[zh] = en
                 return result
             except Exception as e:
                 last, blocked = classify(e)

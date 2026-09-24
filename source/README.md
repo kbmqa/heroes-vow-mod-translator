@@ -9,6 +9,6 @@ Everything the release ships is built from these files by `pack.py`:
 | `build_dictionary.py` | The setup program with `translate_mod.py` embedded (output of `pack.py`). Runs directly with Python. |
 | `pack.py` | Builds `build_dictionary.py`, then writes `Build Dictionary.bat` = a 25-line batch launcher + `build_dictionary.py` appended after a `:::PYTHON:::` marker. |
 
-To verify the release: run `python pack.py` here and compare the produced `Build Dictionary.bat` with the one in the release folder. Windows line endings (CRLF) are used for the `.bat`.
+To verify the release: run `python pack.py` here and compare the produced `Build Dictionary.bat` (written to the repository root) with the one attached to the release. Windows line endings (CRLF) are used for the `.bat`.
 
 MIT licensed; see `../LICENSE`.
