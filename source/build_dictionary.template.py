@@ -8,7 +8,7 @@
 #
 # It creates a folder named  Dictionary  next to this script containing:
 #
-#   Translate Mods.bat       double-click to translate your Workshop mods. Works
+#   Translate-Mods.bat       double-click to translate your Workshop mods. Works
 #                            on a PC without Python: it downloads a private
 #                            copy once (11 MB, no installer, no admin).
 #   translate_mod.py         the translator itself (standard library only).
@@ -41,7 +41,7 @@ UNTRANSLATED_PATH = os.path.join(OUT_DIR, "vanilla_untranslated.json")
 GLOSSARY_PATH = os.path.join(OUT_DIR, "glossary.json")
 TRANSLATE_PATH = os.path.join(OUT_DIR, "translate_mod.py")
 INI_PATH = os.path.join(OUT_DIR, "ai_api.ini")
-BAT_PATH = os.path.join(OUT_DIR, "Translate Mods.bat")
+BAT_PATH = os.path.join(OUT_DIR, "Translate-Mods.bat")
 README_PATH = os.path.join(OUT_DIR, "README.md")
 LICENSE_PATH = os.path.join(OUT_DIR, "LICENSE")
 
@@ -274,6 +274,9 @@ def build(game_folder):
             f.write(AI_INI)
     with open(BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
         f.write(LAUNCHER_BAT)
+    old_bat = os.path.join(OUT_DIR, "Translate Mods.bat")     # name used by the first release
+    if os.path.exists(old_bat):
+        os.remove(old_bat)
     with open(README_PATH, "w", encoding="utf-8") as f:
         f.write(README_MD)
     with open(LICENSE_PATH, "w", encoding="utf-8") as f:
@@ -286,7 +289,7 @@ def build(game_folder):
     print("glossary.json has %d game terms." % len(glossary))
     print("")
     print("Everything is in: " + OUT_DIR)
-    print("  Translate Mods.bat - double-click to translate (works without Python installed)")
+    print("  Translate-Mods.bat - double-click to translate (works without Python installed)")
     print("  translate_mod.py   - the translator itself; run directly if you have Python")
     print("  ai_api.ini         - optional: turn on AI translation and put your API key")
     print("  README.md, LICENSE - documentation and MIT license")

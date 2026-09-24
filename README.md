@@ -25,7 +25,7 @@ What is deliberately **not** translated:
 
 ## Install (once)
 
-1. Download `Build Dictionary.bat`.
+1. Download `Build-Dictionary.bat`.
 2. Put it in the game folder, the one containing `ThreeKingdom_Data`. Typically:
    `D:\SteamLibrary\steamapps\common\LegendOfHeros`
 3. Double-click it. It finds the game data by itself, then press Enter.
@@ -36,7 +36,7 @@ Run it again whenever the game updates.
 
 ## Translate mods
 
-Double-click `Dictionary\Translate Mods.bat`.
+Double-click `Dictionary\Translate-Mods.bat`.
 
 ```
 Workshop folder found: D:\SteamLibrary\steamapps\workshop\content\3020510
@@ -78,7 +78,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 
 | File | What it is |
 |---|---|
-| `Translate Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
+| `Translate-Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
 | `translate_mod.py` | The translator itself. Standard library only. |
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
@@ -103,7 +103,7 @@ If a line reads badly in-game, find it in `Dictionary\manual.json`, change the E
 
 This tool is a plain text script. You can read every line of it.
 
-- `Build Dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
+- `Build-Dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
 - Network access, complete list:
   - `python.org` — only if no Python is installed, to download the official embeddable Python once.
   - `translate.googleapis.com` — Google Translate, only for lines not found in the dictionary.

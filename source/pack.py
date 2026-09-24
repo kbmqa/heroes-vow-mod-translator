@@ -1,8 +1,8 @@
 # pack.py - builds the deliverables:
 #   build_dictionary.py   = build_dictionary.template.py + translate_mod.py embedded verbatim
-#   Build Dictionary.bat  = a batch launcher with build_dictionary.py appended after a marker.
+#   Build-Dictionary.bat  = a batch launcher with build_dictionary.py appended after a marker.
 #                           Runs with an installed Python, or downloads a private embeddable
-#                           Python into Dictionary\python\ (shared with Translate Mods.bat).
+#                           Python into Dictionary\python\ (shared with Translate-Mods.bat).
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -48,5 +48,5 @@ if errorlevel 1 pause
 exit /b
 """ + MARK + "\n"
 bat = HEADER.replace("\n", "\r\n") + py.replace("\n", "\r\n")
-open(os.path.join(ROOT, "Build Dictionary.bat"), "wb").write(bat.encode("utf-8"))
-print("packed Build Dictionary.bat: %d bytes" % len(bat))
+open(os.path.join(ROOT, "Build-Dictionary.bat"), "wb").write(bat.encode("utf-8"))
+print("packed Build-Dictionary.bat: %d bytes" % len(bat))

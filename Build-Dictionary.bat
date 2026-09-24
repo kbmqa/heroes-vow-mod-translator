@@ -35,7 +35,7 @@ exit /b
 #
 # It creates a folder named  Dictionary  next to this script containing:
 #
-#   Translate Mods.bat       double-click to translate your Workshop mods. Works
+#   Translate-Mods.bat       double-click to translate your Workshop mods. Works
 #                            on a PC without Python: it downloads a private
 #                            copy once (11 MB, no installer, no admin).
 #   translate_mod.py         the translator itself (standard library only).
@@ -68,7 +68,7 @@ UNTRANSLATED_PATH = os.path.join(OUT_DIR, "vanilla_untranslated.json")
 GLOSSARY_PATH = os.path.join(OUT_DIR, "glossary.json")
 TRANSLATE_PATH = os.path.join(OUT_DIR, "translate_mod.py")
 INI_PATH = os.path.join(OUT_DIR, "ai_api.ini")
-BAT_PATH = os.path.join(OUT_DIR, "Translate Mods.bat")
+BAT_PATH = os.path.join(OUT_DIR, "Translate-Mods.bat")
 README_PATH = os.path.join(OUT_DIR, "README.md")
 LICENSE_PATH = os.path.join(OUT_DIR, "LICENSE")
 
@@ -301,6 +301,9 @@ def build(game_folder):
             f.write(AI_INI)
     with open(BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
         f.write(LAUNCHER_BAT)
+    old_bat = os.path.join(OUT_DIR, "Translate Mods.bat")     # name used by the first release
+    if os.path.exists(old_bat):
+        os.remove(old_bat)
     with open(README_PATH, "w", encoding="utf-8") as f:
         f.write(README_MD)
     with open(LICENSE_PATH, "w", encoding="utf-8") as f:
@@ -313,7 +316,7 @@ def build(game_folder):
     print("glossary.json has %d game terms." % len(glossary))
     print("")
     print("Everything is in: " + OUT_DIR)
-    print("  Translate Mods.bat - double-click to translate (works without Python installed)")
+    print("  Translate-Mods.bat - double-click to translate (works without Python installed)")
     print("  translate_mod.py   - the translator itself; run directly if you have Python")
     print("  ai_api.ini         - optional: turn on AI translation and put your API key")
     print("  README.md, LICENSE - documentation and MIT license")
@@ -402,7 +405,7 @@ What is deliberately **not** translated:
 
 ## Install (once)
 
-1. Download `Build Dictionary.bat`.
+1. Download `Build-Dictionary.bat`.
 2. Put it in the game folder, the one containing `ThreeKingdom_Data`. Typically:
    `D:\SteamLibrary\steamapps\common\LegendOfHeros`
 3. Double-click it. It finds the game data by itself, then press Enter.
@@ -413,7 +416,7 @@ Run it again whenever the game updates.
 
 ## Translate mods
 
-Double-click `Dictionary\Translate Mods.bat`.
+Double-click `Dictionary\Translate-Mods.bat`.
 
 ```
 Workshop folder found: D:\SteamLibrary\steamapps\workshop\content\3020510
@@ -455,7 +458,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 
 | File | What it is |
 |---|---|
-| `Translate Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
+| `Translate-Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
 | `translate_mod.py` | The translator itself. Standard library only. |
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
@@ -480,7 +483,7 @@ If a line reads badly in-game, find it in `Dictionary\manual.json`, change the E
 
 This tool is a plain text script. You can read every line of it.
 
-- `Build Dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
+- `Build-Dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
 - Network access, complete list:
   - `python.org` — only if no Python is installed, to download the official embeddable Python once.
   - `translate.googleapis.com` — Google Translate, only for lines not found in the dictionary.
