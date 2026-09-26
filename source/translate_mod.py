@@ -322,8 +322,10 @@ def protect(text, use_glossary=True):
     found = []
 
     def swap_term(m):
-        found.append(GLOSSARY[m.group(0)])
-        return GLOSSARY[m.group(0)]
+        en = GLOSSARY[m.group(0)]
+        if en[:1].isupper():          # names, places, stats must come back verbatim;
+            found.append(en)          # lower-case phrases ("trigger melee") may be rephrased
+        return en
 
     if use_glossary and GLOSSARY_PAT is not None:
         pat = GLOSSARY_PAT if DESCRIPTION_LINE.search(text) else GLOSSARY_PAT_DLG
@@ -449,9 +451,10 @@ class GoogleEngine(object):
         """One line. Returns (english, None) or (None, reason)."""
         if not line.strip() or not CJK.search(line):
             return line, None
-        lead, prot, found, tail = prep_line(line, self.use_glossary)
         last = "unknown"
+        pin = self.use_glossary
         for attempt in range(attempts):
+            lead, prot, found, tail = prep_line(line, pin)
             try:
                 out = self.tr.translate(prot)
                 en = restore(out or "", found, line)
@@ -459,6 +462,8 @@ class GoogleEngine(object):
                 if why is None:
                     return lead + en + tail, None
                 last = why
+                if why.startswith("dropped '"):
+                    pin = False               # Google rewrote a pinned term: retry unpinned rather than identically
             except Exception as e:
                 last, blocked = classify(e)
                 if blocked:
