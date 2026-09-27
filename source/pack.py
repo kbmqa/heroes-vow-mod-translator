@@ -1,6 +1,6 @@
 # pack.py - builds the deliverables:
 #   build_dictionary.py   = build_dictionary.template.py + translate_mod.py embedded verbatim
-#   Build Dictionary.bat  = a batch launcher with build_dictionary.py appended after a marker.
+#   build-dictionary.bat  = a batch launcher with build_dictionary.py appended after a marker.
 #                           Runs with an installed Python, or downloads a private embeddable
 #                           Python into Dictionary\python\ (shared with Translate Mods.bat).
 import os
@@ -10,8 +10,11 @@ src = open(os.path.join(HERE, "build_dictionary.template.py"), encoding="utf-8")
 tm = open(os.path.join(HERE, "translate_mod.py"), encoding="utf-8").read()
 assert "'''" not in tm, "translate_mod.py must not contain triple single quotes"
 assert "__TRANSLATE_MOD_PY__" in src
-readme = open(os.path.join(HERE, "release", "README.md"), encoding="utf-8").read()
-lic = open(os.path.join(HERE, "release", "LICENSE"), encoding="utf-8").read()
+# README.md and LICENSE: in ./release when building, or one folder up in the published repo (source/..)
+DOCS = next(d for d in (os.path.join(HERE, "release"), os.path.dirname(HERE))
+            if os.path.isfile(os.path.join(d, "README.md")) and os.path.isfile(os.path.join(d, "LICENSE")))
+readme = open(os.path.join(DOCS, "README.md"), encoding="utf-8").read()
+lic = open(os.path.join(DOCS, "LICENSE"), encoding="utf-8").read()
 assert "'''" not in readme and "'''" not in lic
 py = src.replace("__TRANSLATE_MOD_PY__", tm).replace("__README_MD__", readme).replace("__LICENSE__", lic)
 open(os.path.join(HERE, "build_dictionary.py"), "w", encoding="utf-8", newline="\n").write(py)
@@ -47,5 +50,5 @@ if errorlevel 1 pause
 exit /b
 """ + MARK + "\n"
 bat = HEADER.replace("\n", "\r\n") + py.replace("\n", "\r\n")
-open(os.path.join(HERE, "Build Dictionary.bat"), "wb").write(bat.encode("utf-8"))
-print("packed Build Dictionary.bat: %d bytes" % len(bat))
+open(os.path.join(HERE, "build-dictionary.bat"), "wb").write(bat.encode("utf-8"))
+print("packed build-dictionary.bat: %d bytes" % len(bat))

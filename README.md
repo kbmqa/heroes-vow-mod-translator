@@ -25,7 +25,7 @@ What is deliberately **not** translated:
 
 ## Install (once)
 
-1. Download `Build Dictionary.bat`.
+1. Download `build-dictionary.bat`.
 2. Put it in the game folder, the one containing `ThreeKingdom_Data`. Typically:
    `D:\SteamLibrary\steamapps\common\LegendOfHeros`
 3. Double-click it. It finds the game data by itself, then press Enter.
@@ -103,7 +103,7 @@ If a line reads badly in-game, find it in `Dictionary\manual.json`, change the E
 
 This tool is a plain text script. You can read every line of it.
 
-- `Build Dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
+- `build-dictionary.bat` is a 25-line batch launcher followed by the Python program itself, appended as text. Open it in Notepad to inspect it. The `source\` folder of this release contains the same program as separate `.py` files, and `pack.py`, which shows exactly how the `.bat` is assembled from them.
 - Network access, complete list:
   - `python.org` — only if no Python is installed, to download the official embeddable Python once.
   - `translate.googleapis.com` — Google Translate, only for lines not found in the dictionary.
@@ -121,6 +121,17 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 - **Lines still in Chinese after translating** — they are either logic rows the game never shows, or developer notes the game itself never translated. Check `needs_translation.json` for anything that actually failed.
 - **AI: "rejected the API key"** — check `api_key` in `ai_api.ini`. **404** — wrong `model` name for that provider; leave it empty for the default.
 - **A Google line is nonsense** — fix it in `manual.json`, or enable AI translation.
+
+## Version history
+
+**v1.1.0**
+- Fixed: translated mods could fail to load in-game when a translation contained a plain double quote `"`, or when a mod stored line breaks as `\n` escapes. Text is now read and written as proper JSON: quotes become curly quotes “ ”, and each field keeps the line-break style it had. Every translated record is checked before saving; if it would not load, the original record is kept and reported.
+- Fixed: pretty-printed mod files (`"key" : "value"` with spaces) are now translated too.
+- Rebuilding the dictionary after a game update now takes the game's current English, so lines the developers retranslated are updated instead of keeping the old wording.
+
+Mods translated with v1.0.0 that fail to load: copy the files from the mod's `backup_original` folder back over it, then translate again.
+
+**v1.0.0** — first release.
 
 ## License
 
