@@ -28,7 +28,9 @@
 #                            results and your corrections.
 #   README.md, LICENSE       full documentation and the MIT license.
 #
-# Run again whenever the game updates. Game files are never modified.
+# Run again whenever the game updates: new lines are added and lines whose
+# English the developers changed are updated to the current wording.
+# Game files are never modified.
 
 import os
 import re
@@ -111,14 +113,25 @@ TERM_EN = re.compile(r"^[A-Z][A-Za-z'\-]*( [A-Za-z0-9'\-]+){0,2}$")
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
-FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
+# "key":"value" - values may contain JSON escapes and raw line breaks
+FIELD = re.compile(r'"([A-Za-z0-9_]+)"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
 DATA_EXT = (".txt", ".json")
 OPTION_FIELD = "option"      # inline choice list: &zh&id&id&tc&en&jp&kr& # &zh&...
 OPT_ZH, OPT_EN, OPT_LEN = 1, 5, 9
 
 
+def decode(raw):
+    """Raw JSON string body -> plain text (escapes resolved), same as translate_mod.py."""
+    if "\\" not in raw:
+        return raw
+    try:
+        return json.loads('"' + raw + '"', strict=False)
+    except Exception:
+        return raw
+
+
 def norm(s):
-    return s.replace("\r\n", "\n")
+    return decode(s).replace("\r\n", "\n")
 
 
 def read_text(path):
@@ -218,9 +231,9 @@ def build(game_folder):
         print("Folder not found: " + game_folder)
         return
     os.makedirs(OUT_DIR, exist_ok=True)
-    dictionary = load_json(DICT_PATH, {})
-    untranslated = set(load_json(UNTRANSLATED_PATH, []))
-    before = len(dictionary)
+    previous = load_json(DICT_PATH, {})       # last build; the current game always wins over it
+    dictionary = {}                           # built fresh from the installed game
+    untranslated = set()
     conflicts = 0
     files = data_files(game_folder)
     print("Scanning %d files in %s ..." % (len(files), game_folder))
@@ -230,7 +243,7 @@ def build(game_folder):
         key, val = norm(zh), norm(en)
         if key in dictionary:
             if dictionary[key] != val:
-                conflicts += 1                # same Chinese, different English: keep the first
+                conflicts += 1                # same Chinese, two Englishes in this game version: keep the first
             return 0
         dictionary[key] = val
         return 1
@@ -263,6 +276,13 @@ def build(game_folder):
         if found or gaps:
             print("  %-45s +%d   (%d without English)" % (os.path.relpath(path, game_folder), found, gaps))
 
+    added = sum(1 for k in dictionary if k not in previous)
+    updated = sum(1 for k, v in dictionary.items() if k in previous and previous[k] != v)
+    kept = 0
+    for k, v in previous.items():             # lines no longer in the game: keep, harmless for older mods
+        if k not in dictionary:
+            dictionary[k] = v
+            kept += 1
     # a line counts as untranslated only if no other row gives it an English version
     untranslated = sorted(k for k in untranslated if k not in dictionary)
     save_json(DICT_PATH, dictionary)
@@ -286,8 +306,9 @@ def build(game_folder):
         f.write(LICENSE_TXT)
 
     print("")
-    print("dictionary.json now has %d entries (%d new, %d conflicting duplicates skipped)."
-          % (len(dictionary), len(dictionary) - before, conflicts))
+    print("dictionary.json now has %d entries: %d new, %d updated to the game's current English, "
+          "%d kept from earlier versions (%d duplicate lines with differing English skipped)."
+          % (len(dictionary), added, updated, kept, conflicts))
     print("vanilla_untranslated.json lists %d lines the game ships without English (for information)." % len(untranslated))
     print("glossary.json has %d game terms." % len(glossary))
     print("")
@@ -477,6 +498,20 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 - **AI: "rejected the API key"** — check `api_key` in `ai_api.ini`. **404** — wrong `model` name for that provider; leave it empty for the default.
 - **A Google line is nonsense** — fix it in `manual.json`, or enable AI translation.
 
+## Version history
+
+**v1.1.0**
+- Fixed: translated mods could fail to load in-game when a translation contained a plain double quote `"`, or when a mod stored line breaks as `\n` escapes. Text is now read and written as proper JSON: quotes become curly quotes “ ”, and each field keeps the line-break style it had. Every translated record is checked before saving; if it would not load, the original record is kept and reported.
+- Fixed: pretty-printed mod files (`"key" : "value"` with spaces) are now translated too.
+- Rebuilding the dictionary after a game update now takes the game's current English, so lines the developers retranslated are updated instead of keeping the old wording.
+- Fixed: official English that contains fullwidth punctuation such as 【 】 was treated as untranslated and never used, so the matching mod lines stayed in Chinese (about 50 lines in `InteractOption.json` alone). Lines the game itself ships without English are now translated online instead of left in Chinese.
+- Fixed: Google results were rejected although correct ("dropped 'stamina'", "reply is not English", "dropped 'trigger melee'"), leaving lines in `needs_translation.json`. Game terms are now sent as their English inside the Chinese, invisible characters in Google's replies are cleaned, and only names, places and stats must come back word for word.
+- The setup file is now `Build-Dictionary.bat` and the translator `Translate-Mods.bat` (no spaces: GitHub renamed the download to `Build.Dictionary.bat`). A leftover `Translate Mods.bat` is removed.
+
+After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: copy the files from the mod's `backup_original` folder back over it (or verify the mod in Steam), then translate again.
+
+**v1.0.0** — first release.
+
 ## License
 
 MIT. See `LICENSE`.
@@ -592,14 +627,15 @@ def detect_providers(key):
         return ["xai"]
     return ["openai", "deepseek"]           # both use plain "sk-..." keys: try in turn
 
-FILL_EN_FIELD = False   # True = also copy the English into the empty "...En" column
 
 # Han ideographs only. Fullwidth punctuation (【】，：) also appears in the game's own
 # ENGLISH, so counting it as Chinese threw away every official line that used it.
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
-FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
+# "key":"value" - the value may contain JSON escapes (\" \n \\) and raw line breaks,
+# and pretty-printed files may have spaces around the colon
+FIELD = re.compile(r'"([A-Za-z0-9_]+)"(\s*:\s*)"((?:[^"\\]|\\.)*)"', re.DOTALL)
 # WO, NI, NTA, AMING, NMING ... (no \b: it does not match between Chinese and Latin letters)
 PLACEHOLDER = re.compile(r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]+(?![A-Za-z0-9])")
 DATA_EXT = (".txt", ".json")
@@ -615,6 +651,60 @@ GAME_APP_ID = "3020510"      # Steam app id: workshop mods live in steamapps\wor
 # ------------------------------------------------------------------ helpers
 def norm(s):
     return s.replace("\r\n", "\n")
+
+
+def fields_of(rec):
+    """{name: raw value} for every "key":"value" in a record (raw = as written in the file)."""
+    return {m.group(1): m.group(3) for m in FIELD.finditer(rec)}
+
+
+def decode(raw):
+    """Raw JSON string body -> plain text. Tolerates raw line breaks like the game does."""
+    if "\\" not in raw:
+        return raw
+    try:
+        return json.loads('"' + raw + '"', strict=False)
+    except Exception:
+        return raw
+
+
+def text_of(raw):
+    """Plain text used as the dictionary key for a raw field value."""
+    return norm(decode(raw))
+
+
+def smart_quotes(text):
+    """ASCII double quotes would end the JSON string: turn them into curly quotes."""
+    out, open_q = [], True
+    for ch in text:
+        if ch == '"':
+            out.append("\u201c" if open_q else "\u201d")
+            open_q = not open_q
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def encode(text, raw_orig, nl):
+    """Plain text -> raw JSON string body, written in the same style as the original field:
+    line breaks as escapes if the original used escapes, as real breaks otherwise."""
+    text = smart_quotes(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = "".join(ch for ch in text if ch in "\n\t" or ord(ch) >= 32)   # no stray control characters
+    text = text.replace("\\", "\\\\")
+    if "\\n" in raw_orig or "\\r" in raw_orig:                            # original wrote \n as an escape
+        br = "\\r\\n" if "\\r\\n" in raw_orig else "\\n"
+        return text.replace("\n", br)
+    return text.replace("\n", nl)
+
+
+def record_ok(rec):
+    """True if a {...} record parses (lenient about raw line breaks, like the game)."""
+    try:
+        json.loads(rec, strict=False)
+        return True
+    except Exception:
+        return False
 
 
 def read_text(path):
@@ -661,6 +751,7 @@ def data_files(folder):
 
 # ------------------------------------------------------------------ step 1/3: apply dictionary
 CONTEXT = {}     # filled by apply_dictionary; read by the AI engine when context = yes
+BROKEN = []      # (file, record id) kept untranslated because the translated record would not parse
 
 
 def field_type(field, is_modinfo=False):
@@ -716,71 +807,77 @@ def apply_dictionary(mod_folder, lookup):
                 info["pos"] = max(0, len(CONTEXT["groups"].get((fname, gid), [])) - 1)   # row was appended already
             CONTEXT["items"].setdefault(zh, info)
 
-        def fix_option(val, fields):
+        def fix_option(raw, fields):
             """Translate the Chinese slot of each choice; choices that already carry English are kept."""
             nonlocal count, skipped
             segs = []
-            for seg in val.split("#"):
+            for seg in raw.split("#"):
                 p = seg.split("&")
                 if len(p) >= OPT_LEN and CJK.search(p[OPT_ZH]) and not has_english(p[OPT_EN]):
-                    zh = norm(p[OPT_ZH])
+                    zh = text_of(p[OPT_ZH])
                     en = lookup.get(zh)
                     if en is None:
                         needs[zh] = ""
                         note(zh, OPTION_FIELD, fields)
                     else:
-                        p[OPT_ZH] = en.replace("&", "and").replace("#", "").replace("\n", " ")
+                        en = en.replace("&", "and").replace("#", "").replace("\r", " ").replace("\n", " ")
+                        p[OPT_ZH] = encode(en, p[OPT_ZH], nl)
                         count += 1
                 segs.append("&".join(p))
             return "#".join(segs)
 
         def fix_record(m):
             nonlocal count, skipped
-            rec = m.group(0)
-            fields = dict(FIELD.findall(rec))
+            original = rec = m.group(0)
+            fields = fields_of(rec)
             if fields.get(LOGIC_ROW[0]) == LOGIC_ROW[1] and "dialog" in fields:
                 skipped += 1
                 return rec                             # logic / comment row -> never displayed
             if is_modinfo:
                 for k in ("name", "remark"):
                     if fields.get(k):
-                        CONTEXT["mod"][k] = lookup.get(norm(fields[k]), fields[k])
+                        CONTEXT["mod"][k] = lookup.get(text_of(fields[k]), decode(fields[k]))
             gid = fields.get("groupID")
             if gid and fields.get("dialog") and CJK.search(fields["dialog"]):
-                zh0 = norm(fields["dialog"])
-                en0 = fields.get("dialogEn") if has_english(fields.get("dialogEn", "")) else lookup.get(zh0)
+                zh0 = text_of(fields["dialog"])
+                en0 = decode(fields["dialogEn"]) if has_english(fields.get("dialogEn", "")) else lookup.get(zh0)
                 CONTEXT["groups"].setdefault((fname, gid), []).append((zh0, en0, fields.get("speakerIndex", "")))
 
             def fix_field(fm):
                 nonlocal count, skipped
-                name, val = fm.group(1), fm.group(2)
+                name, sep, val = fm.group(1), fm.group(2), fm.group(3)
+                keep = fm.group(0)
                 if name.endswith("En") or not val or not CJK.search(val):
-                    return fm.group(0)
+                    return keep
                 if name == OPTION_FIELD:
-                    return '"%s":"%s"' % (name, fix_option(val, fields))
+                    return '"%s"%s"%s"' % (name, sep, fix_option(val, fields))
                 is_display = (name + "En") in fields or (is_modinfo and name in ("name", "remark"))
                 if not is_display and name not in COMMENT_FIELDS:
-                    return fm.group(0)                 # engine key -> leave alone
+                    return keep                        # engine key -> leave alone
                 if has_english(fields.get(name + "En", "")):
-                    return fm.group(0)                 # English twin already filled -> game shows it
-                key = norm(val)
+                    return keep                        # English twin already filled -> game shows it
+                key = text_of(val)
                 en = lookup.get(key)
                 if en is None:
                     if is_display:
                         needs[key] = ""
                         note(key, name, fields)
-                    return fm.group(0)
+                    return keep
                 count += 1
-                return '"%s":"%s"' % (name, en.replace("\n", nl))
+                return '"%s"%s"%s"' % (name, sep, encode(en, val, nl))
 
             rec = FIELD.sub(fix_field, rec)
             if FILL_EN_FIELD:
                 for name, val in fields.items():
                     if (name + "En") in fields and not fields[name + "En"] and val and CJK.search(val):
-                        en = lookup.get(norm(val))
+                        en = lookup.get(text_of(val))
                         if en is not None:
-                            rec = rec.replace('"%sEn":""' % name,
-                                              '"%sEn":"%s"' % (name, en.replace("\n", nl)), 1)
+                            rec = re.sub(r'"%sEn"(\s*:\s*)""' % re.escape(name),
+                                         lambda mm: '"%sEn"%s"%s"' % (name, mm.group(1), encode(en, val, nl)), rec, 1)
+            # safety net: never write a record that no longer parses; keep the original instead
+            if rec != original and record_ok(original) and not record_ok(rec):
+                BROKEN.append((fname, fields.get("groupID") or fields.get("id") or fields.get("ID") or "?"))
+                return original
             return rec
 
         new_text = RECORD.sub(fix_record, text)
@@ -797,6 +894,11 @@ def apply_dictionary(mod_folder, lookup):
         print("  %-30s %d translated" % (os.path.relpath(path, mod_folder), count))
     if skipped:
         print("  (%d logic rows left as they are)" % skipped)
+    if BROKEN:
+        print("  ! %d records left untranslated because the result would not load:" % len(BROKEN))
+        for f, rid in BROKEN[:10]:
+            print("      %s  %s" % (f, rid))
+        del BROKEN[:]
     return total, needs
 
 
@@ -846,8 +948,8 @@ def protect(text, use_glossary=True):
 # although the text is fine, so they are normalised before the gate looks at it.
 ZERO_WIDTH = re.compile("[\\u200b\\u200c\\u200d\\u2060\\ufeff]")
 WIDE_PUNCT = {"，": ", ", "。": ". ", "；": "; ", "：": ": ", "（": " (", "）": ") ",
-              "！": "! ", "？": "? ", "、": ", ", "「": '"', "」": '"', "『": '"',
-              "』": '"', "【": "[", "】": "]", "～": "~", " ": " ", "×": "x"}
+              "！": "! ", "？": "? ", "、": ", ", "「": "“", "」": "”", "『": "“",
+              "』": "”", "【": "[", "】": "]", "～": "~", " ": " ", "×": "x"}
 
 
 def clean_reply(text):
@@ -896,6 +998,8 @@ def gate(zh, en, found=None):
     for ph in set(PLACEHOLDER.findall(zh)):
         if ph not in en:
             return "dropped placeholder %s" % ph
+    if norm(en).count("\n") != norm(zh).count("\n"):
+        return "line breaks changed"
     if NON_ENGLISH_LETTER.search(LEAD_SYMBOLS.sub("", en)):
         return "reply is not English"
     ratio = len(en) / max(len(zh.strip()), 1)

@@ -10,9 +10,12 @@ src = open(os.path.join(HERE, "build_dictionary.template.py"), encoding="utf-8")
 tm = open(os.path.join(HERE, "translate_mod.py"), encoding="utf-8").read()
 assert "'''" not in tm, "translate_mod.py must not contain triple single quotes"
 assert "__TRANSLATE_MOD_PY__" in src
-ROOT = os.path.dirname(HERE)          # repository root: README.md, LICENSE and the .bat live there
-readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
-lic = open(os.path.join(ROOT, "LICENSE"), encoding="utf-8").read()
+ROOT = os.path.dirname(HERE)          # repository root: the .bat is written there
+# README.md and LICENSE: in ./release when building, or one folder up in the published repo (source/..)
+DOCS = next(d for d in (os.path.join(HERE, "release"), ROOT)
+            if os.path.isfile(os.path.join(d, "README.md")) and os.path.isfile(os.path.join(d, "LICENSE")))
+readme = open(os.path.join(DOCS, "README.md"), encoding="utf-8").read()
+lic = open(os.path.join(DOCS, "LICENSE"), encoding="utf-8").read()
 assert "'''" not in readme and "'''" not in lic
 py = src.replace("__TRANSLATE_MOD_PY__", tm).replace("__README_MD__", readme).replace("__LICENSE__", lic)
 open(os.path.join(HERE, "build_dictionary.py"), "w", encoding="utf-8", newline="\n").write(py)

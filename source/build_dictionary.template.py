@@ -28,7 +28,9 @@
 #                            results and your corrections.
 #   README.md, LICENSE       full documentation and the MIT license.
 #
-# Run again whenever the game updates. Game files are never modified.
+# Run again whenever the game updates: new lines are added and lines whose
+# English the developers changed are updated to the current wording.
+# Game files are never modified.
 
 import os
 import re
@@ -111,14 +113,25 @@ TERM_EN = re.compile(r"^[A-Z][A-Za-z'\-]*( [A-Za-z0-9'\-]+){0,2}$")
 CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 # one {...} record; quoted strings may contain { } without breaking the record
 RECORD = re.compile(r'\{(?:"(?:[^"\\]|\\.)*"|[^{}"])*\}', re.DOTALL)
-FIELD = re.compile(r'"([A-Za-z0-9_]+)":"([^"]*)"')
+# "key":"value" - values may contain JSON escapes and raw line breaks
+FIELD = re.compile(r'"([A-Za-z0-9_]+)"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
 DATA_EXT = (".txt", ".json")
 OPTION_FIELD = "option"      # inline choice list: &zh&id&id&tc&en&jp&kr& # &zh&...
 OPT_ZH, OPT_EN, OPT_LEN = 1, 5, 9
 
 
+def decode(raw):
+    """Raw JSON string body -> plain text (escapes resolved), same as translate_mod.py."""
+    if "\\" not in raw:
+        return raw
+    try:
+        return json.loads('"' + raw + '"', strict=False)
+    except Exception:
+        return raw
+
+
 def norm(s):
-    return s.replace("\r\n", "\n")
+    return decode(s).replace("\r\n", "\n")
 
 
 def read_text(path):
@@ -218,9 +231,9 @@ def build(game_folder):
         print("Folder not found: " + game_folder)
         return
     os.makedirs(OUT_DIR, exist_ok=True)
-    dictionary = load_json(DICT_PATH, {})
-    untranslated = set(load_json(UNTRANSLATED_PATH, []))
-    before = len(dictionary)
+    previous = load_json(DICT_PATH, {})       # last build; the current game always wins over it
+    dictionary = {}                           # built fresh from the installed game
+    untranslated = set()
     conflicts = 0
     files = data_files(game_folder)
     print("Scanning %d files in %s ..." % (len(files), game_folder))
@@ -230,7 +243,7 @@ def build(game_folder):
         key, val = norm(zh), norm(en)
         if key in dictionary:
             if dictionary[key] != val:
-                conflicts += 1                # same Chinese, different English: keep the first
+                conflicts += 1                # same Chinese, two Englishes in this game version: keep the first
             return 0
         dictionary[key] = val
         return 1
@@ -263,6 +276,13 @@ def build(game_folder):
         if found or gaps:
             print("  %-45s +%d   (%d without English)" % (os.path.relpath(path, game_folder), found, gaps))
 
+    added = sum(1 for k in dictionary if k not in previous)
+    updated = sum(1 for k, v in dictionary.items() if k in previous and previous[k] != v)
+    kept = 0
+    for k, v in previous.items():             # lines no longer in the game: keep, harmless for older mods
+        if k not in dictionary:
+            dictionary[k] = v
+            kept += 1
     # a line counts as untranslated only if no other row gives it an English version
     untranslated = sorted(k for k in untranslated if k not in dictionary)
     save_json(DICT_PATH, dictionary)
@@ -286,8 +306,9 @@ def build(game_folder):
         f.write(LICENSE_TXT)
 
     print("")
-    print("dictionary.json now has %d entries (%d new, %d conflicting duplicates skipped)."
-          % (len(dictionary), len(dictionary) - before, conflicts))
+    print("dictionary.json now has %d entries: %d new, %d updated to the game's current English, "
+          "%d kept from earlier versions (%d duplicate lines with differing English skipped)."
+          % (len(dictionary), added, updated, kept, conflicts))
     print("vanilla_untranslated.json lists %d lines the game ships without English (for information)." % len(untranslated))
     print("glossary.json has %d game terms." % len(glossary))
     print("")

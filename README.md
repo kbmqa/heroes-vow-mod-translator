@@ -121,6 +121,20 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 - **AI: "rejected the API key"** — check `api_key` in `ai_api.ini`. **404** — wrong `model` name for that provider; leave it empty for the default.
 - **A Google line is nonsense** — fix it in `manual.json`, or enable AI translation.
 
+## Version history
+
+**v1.1.0**
+- Fixed: translated mods could fail to load in-game when a translation contained a plain double quote `"`, or when a mod stored line breaks as `\n` escapes. Text is now read and written as proper JSON: quotes become curly quotes “ ”, and each field keeps the line-break style it had. Every translated record is checked before saving; if it would not load, the original record is kept and reported.
+- Fixed: pretty-printed mod files (`"key" : "value"` with spaces) are now translated too.
+- Rebuilding the dictionary after a game update now takes the game's current English, so lines the developers retranslated are updated instead of keeping the old wording.
+- Fixed: official English that contains fullwidth punctuation such as 【 】 was treated as untranslated and never used, so the matching mod lines stayed in Chinese (about 50 lines in `InteractOption.json` alone). Lines the game itself ships without English are now translated online instead of left in Chinese.
+- Fixed: Google results were rejected although correct ("dropped 'stamina'", "reply is not English", "dropped 'trigger melee'"), leaving lines in `needs_translation.json`. Game terms are now sent as their English inside the Chinese, invisible characters in Google's replies are cleaned, and only names, places and stats must come back word for word.
+- The setup file is now `Build-Dictionary.bat` and the translator `Translate-Mods.bat` (no spaces: GitHub renamed the download to `Build.Dictionary.bat`). A leftover `Translate Mods.bat` is removed.
+
+After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: copy the files from the mod's `backup_original` folder back over it (or verify the mod in Steam), then translate again.
+
+**v1.0.0** — first release.
+
 ## License
 
 MIT. See `LICENSE`.
