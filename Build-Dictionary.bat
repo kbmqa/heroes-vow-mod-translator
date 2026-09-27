@@ -38,6 +38,8 @@ exit /b
 #   Translate-Mods.bat       double-click to translate your Workshop mods. Works
 #                            on a PC without Python: it downloads a private
 #                            copy once (11 MB, no installer, no admin).
+#   Restore-Mods.bat         double-click to put every translated mod back to
+#                            its original files (from its backup_original).
 #   translate_mod.py         the translator itself (standard library only).
 #                            Generated here, nothing else to download.
 #   ai_api.ini               AI settings: turn AI translation on/off and put
@@ -72,6 +74,7 @@ GLOSSARY_PATH = os.path.join(OUT_DIR, "glossary.json")
 TRANSLATE_PATH = os.path.join(OUT_DIR, "translate_mod.py")
 INI_PATH = os.path.join(OUT_DIR, "ai_api.ini")
 BAT_PATH = os.path.join(OUT_DIR, "Translate-Mods.bat")
+RESTORE_BAT_PATH = os.path.join(OUT_DIR, "Restore-Mods.bat")
 README_PATH = os.path.join(OUT_DIR, "README.md")
 LICENSE_PATH = os.path.join(OUT_DIR, "LICENSE")
 
@@ -103,6 +106,9 @@ if not defined PY (
 %PY% translate_mod.py %*
 if errorlevel 1 pause
 """
+# the same launcher, running the translator in restore mode
+RESTORE_BAT = LAUNCHER_BAT.replace("%PY% translate_mod.py %*", "%PY% translate_mod.py --restore %*")
+assert RESTORE_BAT != LAUNCHER_BAT
 
 AI_INI = """; AI settings for translate_mod.py
 ;
@@ -324,6 +330,8 @@ def build(game_folder):
             f.write(AI_INI)
     with open(BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
         f.write(LAUNCHER_BAT)
+    with open(RESTORE_BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
+        f.write(RESTORE_BAT)
     old_bat = os.path.join(OUT_DIR, "Translate Mods.bat")     # name used by the first release
     if os.path.exists(old_bat):
         os.remove(old_bat)
@@ -341,6 +349,7 @@ def build(game_folder):
     print("")
     print("Everything is in: " + OUT_DIR)
     print("  Translate-Mods.bat - double-click to translate (works without Python installed)")
+    print("  Restore-Mods.bat   - double-click to put translated mods back to their original files")
     print("  translate_mod.py   - the translator itself; run directly if you have Python")
     print("  ai_api.ini         - optional: turn on AI translation and put your API key")
     print("  README.md, LICENSE - documentation and MIT license")
@@ -452,7 +461,7 @@ You can also paste a single mod folder, or drag a folder onto the `.bat`.
 
 Rerunning is safe: mods already translated report `0 translated` and are left alone. A mod that Steam has updated since is recognised (its files are newer than its backup) and translated again with a fresh backup.
 
-**To restore a mod to Chinese**, copy the files from its `backup_original` folder back over the mod files, or simply verify the mod's files in Steam.
+**To restore mods to Chinese**, double-click `Dictionary\Restore-Mods.bat`. It puts every translated mod back to the files in its `backup_original` folder and removes the translator's extra files, so the mod is as Steam delivered it. Press Enter to restore all of them, or paste one mod folder. A file that Steam has updated since it was translated is already the original and is left as it is. You can also verify the mod's files in Steam.
 
 ## AI translation (optional)
 
@@ -482,6 +491,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 | File | What it is |
 |---|---|
 | `Translate-Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
+| `Restore-Mods.bat` | Double-click to put translated mods back to their original files. |
 | `translate_mod.py` | The translator itself. Standard library only. |
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
@@ -533,9 +543,10 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 - Rebuilding the dictionary after a game update now takes the game's current English, so lines the developers retranslated are updated instead of keeping the old wording.
 - Fixed: official English that contains fullwidth punctuation such as 【 】 was treated as untranslated and never used, so the matching mod lines stayed in Chinese (about 50 lines in `InteractOption.json` alone). Lines the game itself ships without English are now translated online instead of left in Chinese.
 - Fixed: Google results were rejected although correct ("dropped 'stamina'", "reply is not English", "dropped 'trigger melee'"), leaving lines in `needs_translation.json`. Game terms are now sent as their English inside the Chinese, invisible characters in Google's replies are cleaned, and only names, places and stats must come back word for word.
+- New: `Restore-Mods.bat` puts every translated mod back to its original files in one go.
 - The setup file is now `Build-Dictionary.bat` and the translator `Translate-Mods.bat` (no spaces: GitHub renamed the download to `Build.Dictionary.bat`). A leftover `Translate Mods.bat` is removed.
 
-After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: copy the files from the mod's `backup_original` folder back over it (or verify the mod in Steam), then translate again.
+After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: run `Restore-Mods.bat` (or verify the mods in Steam), then translate again.
 
 **v1.0.0** — first release.
 
@@ -1541,6 +1552,90 @@ def translate(mod_folder, cfg=None):
     return total, len(needs)
 
 
+# ------------------------------------------------------------------ restore (Restore-Mods.bat)
+def restore_mod(mod_folder):
+    """Put a translated mod back to its original files from backup_original\\.
+    Returns (restored, kept_newer) or None when the mod was never translated.
+
+    A file is restored only when it is not newer than its backup. The translator
+    stamps every backup a moment newer than the file it writes, so a file that is
+    newer than its backup was replaced afterwards - by a Steam update of the mod -
+    and is already the current original: copying the old backup over it would
+    downgrade the mod, so it is left alone."""
+    backup_dir = os.path.join(mod_folder, "backup_original")
+    if not os.path.isdir(backup_dir):
+        return None
+    restored, kept_newer = 0, []
+    for root, dirs, files in os.walk(backup_dir):
+        for name in files:
+            src = os.path.join(root, name)
+            rel = os.path.relpath(src, backup_dir)
+            dst = os.path.join(mod_folder, rel)
+            if not os.path.exists(dst):
+                continue                               # the mod no longer has this file
+            if os.path.getmtime(dst) > os.path.getmtime(src) + 1:
+                kept_newer.append(rel)                 # updated by Steam after translating
+                continue
+            shutil.copy2(src, dst)
+            restored += 1
+    # hand-filled lines waiting in needs_translation.json are kept in manual.json
+    needs_path = os.path.join(mod_folder, "needs_translation.json")
+    filled = {k: v for k, v in load_json(needs_path).items() if v}
+    if filled:
+        manual = load_json(MANUAL_PATH)
+        manual.update(filled)
+        save_json(MANUAL_PATH, manual)
+    for extra in ("needs_translation.json", "translate_log.txt"):
+        p = os.path.join(mod_folder, extra)
+        if os.path.exists(p):
+            os.remove(p)
+    if not kept_newer:
+        shutil.rmtree(backup_dir, ignore_errors=True)  # the mod is exactly as Steam delivered it again
+    return restored, kept_newer
+
+
+def restore_all(path):
+    """Restore one mod folder, or every mod inside a folder of mods."""
+    mods = [path] if is_mod_folder(path) else find_mods(path)
+    if not mods:
+        print("No mod folders found inside: " + path)
+        return
+    done = 0
+    for mod in mods:
+        label = "%s  %s" % (os.path.basename(mod), short(mod_name(mod), 40))
+        try:
+            res = restore_mod(mod)
+        except Exception as e:
+            print("  ! %s: failed: %s" % (label, e))
+            continue
+        if res is None:
+            continue                                   # never translated: nothing to do
+        restored, kept_newer = res
+        if restored:
+            done += 1
+        print("  %s: %d files restored" % (label, restored))
+        for rel in kept_newer:
+            print("      %s kept: Steam updated it after translating, it is already the original" % rel)
+        if kept_newer:
+            print("      backup_original kept for reference")
+    print("")
+    if done:
+        print("%d mods restored to their original files. Run Translate-Mods.bat to translate them again." % done)
+    elif not any(os.path.isdir(os.path.join(m, "backup_original")) for m in mods):
+        print("No translated mods found (none has a backup_original folder).")
+    else:
+        print("Nothing to restore: every translated file was already replaced by a Steam update.")
+
+
+def run_restore(path):
+    if not os.path.isdir(path):
+        print("Folder not found: " + path)
+    elif other_game(path):
+        print("That folder belongs to a different game's Workshop (this game is content\\%s). Nothing done." % GAME_APP_ID)
+    else:
+        restore_all(path)
+
+
 def translate_all(root, cfg=None):
     """Translate every mod folder inside root (e.g. the Workshop content\<game id> folder)."""
     mods = find_mods(root)
@@ -1624,7 +1719,29 @@ def run(path, cfg=None):
         translate_all(path, cfg)
 
 
+def main_restore(args):
+    if args:
+        run_restore(args[0].strip().strip('"'))
+        return
+    ws = workshop_folder()
+    print("Restore mods: puts every translated mod back to its original (Chinese) files")
+    print("from its backup_original folder. Mods Steam has updated since are left as they are.")
+    print("")
+    if ws:
+        print("Workshop folder found: " + ws)
+        p = input("Press Enter to restore every mod in it, or paste one mod folder path: ").strip().strip('"')
+        run_restore(p or ws)
+    else:
+        p = input("Mod folder path (or the Workshop content folder to restore all mods): ").strip().strip('"')
+        if p:
+            run_restore(p)
+    input("Press Enter to close...")
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--restore":
+        main_restore(sys.argv[2:])
+        return
     if len(sys.argv) >= 2:
         run(sys.argv[1].strip().strip('"'))
         return

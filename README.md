@@ -48,7 +48,7 @@ You can also paste a single mod folder, or drag a folder onto the `.bat`.
 
 Rerunning is safe: mods already translated report `0 translated` and are left alone. A mod that Steam has updated since is recognised (its files are newer than its backup) and translated again with a fresh backup.
 
-**To restore a mod to Chinese**, copy the files from its `backup_original` folder back over the mod files, or simply verify the mod's files in Steam.
+**To restore mods to Chinese**, double-click `Dictionary\Restore-Mods.bat`. It puts every translated mod back to the files in its `backup_original` folder and removes the translator's extra files, so the mod is as Steam delivered it. Press Enter to restore all of them, or paste one mod folder. A file that Steam has updated since it was translated is already the original and is left as it is. You can also verify the mod's files in Steam.
 
 ## AI translation (optional)
 
@@ -78,6 +78,7 @@ Typical cost with AI enabled is a few cents per mod. Google Translate is free bu
 | File | What it is |
 |---|---|
 | `Translate-Mods.bat` | Double-click to translate. Uses installed Python or the private copy. |
+| `Restore-Mods.bat` | Double-click to put translated mods back to their original files. |
 | `translate_mod.py` | The translator itself. Standard library only. |
 | `ai_api.ini` | Your AI settings. Never overwritten by a rebuild. |
 | `dictionary.json` | Chinese → English from the game files. |
@@ -129,9 +130,10 @@ Windows SmartScreen may warn about an unrecognised `.bat` file, as it does for a
 - Rebuilding the dictionary after a game update now takes the game's current English, so lines the developers retranslated are updated instead of keeping the old wording.
 - Fixed: official English that contains fullwidth punctuation such as 【 】 was treated as untranslated and never used, so the matching mod lines stayed in Chinese (about 50 lines in `InteractOption.json` alone). Lines the game itself ships without English are now translated online instead of left in Chinese.
 - Fixed: Google results were rejected although correct ("dropped 'stamina'", "reply is not English", "dropped 'trigger melee'"), leaving lines in `needs_translation.json`. Game terms are now sent as their English inside the Chinese, invisible characters in Google's replies are cleaned, and only names, places and stats must come back word for word.
+- New: `Restore-Mods.bat` puts every translated mod back to its original files in one go.
 - The setup file is now `Build-Dictionary.bat` and the translator `Translate-Mods.bat` (no spaces: GitHub renamed the download to `Build.Dictionary.bat`). A leftover `Translate Mods.bat` is removed.
 
-After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: copy the files from the mod's `backup_original` folder back over it (or verify the mod in Steam), then translate again.
+After updating, run `Build-Dictionary.bat` once to rebuild the dictionary. Mods translated with v1.0.0 that fail to load or still show Chinese: run `Restore-Mods.bat` (or verify the mods in Steam), then translate again.
 
 **v1.0.0** — first release.
 

@@ -11,6 +11,8 @@
 #   Translate-Mods.bat       double-click to translate your Workshop mods. Works
 #                            on a PC without Python: it downloads a private
 #                            copy once (11 MB, no installer, no admin).
+#   Restore-Mods.bat         double-click to put every translated mod back to
+#                            its original files (from its backup_original).
 #   translate_mod.py         the translator itself (standard library only).
 #                            Generated here, nothing else to download.
 #   ai_api.ini               AI settings: turn AI translation on/off and put
@@ -45,6 +47,7 @@ GLOSSARY_PATH = os.path.join(OUT_DIR, "glossary.json")
 TRANSLATE_PATH = os.path.join(OUT_DIR, "translate_mod.py")
 INI_PATH = os.path.join(OUT_DIR, "ai_api.ini")
 BAT_PATH = os.path.join(OUT_DIR, "Translate-Mods.bat")
+RESTORE_BAT_PATH = os.path.join(OUT_DIR, "Restore-Mods.bat")
 README_PATH = os.path.join(OUT_DIR, "README.md")
 LICENSE_PATH = os.path.join(OUT_DIR, "LICENSE")
 
@@ -76,6 +79,9 @@ if not defined PY (
 %PY% translate_mod.py %*
 if errorlevel 1 pause
 """
+# the same launcher, running the translator in restore mode
+RESTORE_BAT = LAUNCHER_BAT.replace("%PY% translate_mod.py %*", "%PY% translate_mod.py --restore %*")
+assert RESTORE_BAT != LAUNCHER_BAT
 
 AI_INI = """; AI settings for translate_mod.py
 ;
@@ -297,6 +303,8 @@ def build(game_folder):
             f.write(AI_INI)
     with open(BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
         f.write(LAUNCHER_BAT)
+    with open(RESTORE_BAT_PATH, "w", encoding="ascii", newline="\r\n") as f:
+        f.write(RESTORE_BAT)
     old_bat = os.path.join(OUT_DIR, "Translate Mods.bat")     # name used by the first release
     if os.path.exists(old_bat):
         os.remove(old_bat)
@@ -314,6 +322,7 @@ def build(game_folder):
     print("")
     print("Everything is in: " + OUT_DIR)
     print("  Translate-Mods.bat - double-click to translate (works without Python installed)")
+    print("  Restore-Mods.bat   - double-click to put translated mods back to their original files")
     print("  translate_mod.py   - the translator itself; run directly if you have Python")
     print("  ai_api.ini         - optional: turn on AI translation and put your API key")
     print("  README.md, LICENSE - documentation and MIT license")
